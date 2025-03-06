@@ -1,37 +1,70 @@
 #include <ptr.h>
 #include <iostream>
+#include <vector>
+#include <stdint.h>
 
 using namespace std;
 
-class Test{
+class BaseTest{
 public:
-    Test(){}
+    BaseTest(){}
+    
+    virtual ~BaseTest(){}
+
     void Function(){
-        cout << "test" << endl;
+        cout << "Function" << endl;
+    }
+    
+    virtual void DerivedFunction() {}
+};
+
+class DerivedTest : public BaseTest{
+public:
+    DerivedTest(){
+
+    }
+    void DerivedFunction() override {
+        cout << "DerivedFunction" << endl;
     }
 };
 
 int main(){
 
-    P<int> p(new int(2));
-    cout << p.Name() << endl; // int
-    cout << p << endl;        // 1
-    cout << &p << endl;       // addr
-    cout << *p << endl;       // 0
-    cout << (bool)p << endl;  // 1
+    int i = 2;
+    Ptr<int> p(i);
+    cout << "Demangled typename of p: " << p.Type() << endl; // int
+    cout << "P is defined: " << (p ? "True" : "False") << endl; // 1
+    cout << "Address of p: " << &p << endl;       // addr
+    cout << "Value of p: " << *p << endl;       // 2
+    
+    vector<Ptr<int>> ints;
 
-    vector<P<int>> ints;
-    uint8_t * rawints[1000];
-    cout << p.count() << endl;// 0
+    cout << "Reference count of ints: " << p.Count() << endl; // 0
+    cout << "Cloning 1000 ints into ints" << endl;
 
-    for(int i = 0; i < 1000; i++){
-        ints.push_back(P<int>(new int(i)));
-        rawints[i] = new uint8_t(i);
+    Ptr<int> int_(42);
+    
+    for(int i = 0; i < 999; i++){
+        
+        ints.emplace_back(Ptr<int>(int_));
+        cout << "Reference count of ints: " << ints.back().Count() << endl; // 1000
+    
     }
     
-    cout << p.count() << endl;// 1000
+    cout << "Reference count of p: " << p.Count() << endl; // 1000
 
-    P<Test> t(new Test());
-    t->Function();
-    
+    Ptr<BaseTest> a(true);
+    a->Function();
+
+    Ptr<DerivedTest> b(true);
+    b->DerivedFunction();
+
+    Ptr<BaseTest> c(b.Cast<BaseTest>());
+    cout << &c << endl;
+
+    c->DerivedFunction();
+    c.Cast<DerivedTest>()->DerivedFunction();
+
+    return 0;
+
 }
