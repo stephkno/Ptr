@@ -39,7 +39,7 @@
         }
 
         // create a new smart pointer from T by copying T
-        Ptr(T & t)
+        Ptr(T t)
         {
             ref_count_ = new uint32_t(1);
             ptr_ = new T(t);
@@ -91,6 +91,13 @@
                     ++(*ref_count_);
                 }
             }
+            return *this;
+        }
+
+        // Assignment operators
+        Ptr<T>& operator=(const T & other)
+        {
+            *ptr_ = other;
             return *this;
         }
 
@@ -182,6 +189,10 @@
 
         bool operator==(const Ptr<T>& lhs) {
             return lhs.ptr_ == ptr_;
+        }
+
+        void Test(){
+            cout << ptr_ << endl;
         }
 
         string Type(){
