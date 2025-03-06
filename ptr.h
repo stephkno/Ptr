@@ -1,7 +1,6 @@
 #ifndef PTR_H
 #define PTR_H
 
-    #include <iostream>
     #include <typeinfo>
     #include <string>
 
@@ -23,38 +22,26 @@
 
     public:
 
+        // Prohibit heap allocation of Ptr
         void * operator new (size_t);
 
-        // Constructors
-        // create new Smart Ptr of this type
-        // default nullptr
-        // set init = true to initialize pointer
-        Ptr(bool init=false) : ptr_(init?new T():nullptr)
-        {
-            if(ptr_){
-                ref_count_ = new uint32_t(1);
-            }else{
-                ref_count_ = new uint32_t(0);
-            }
-        }
+        // Initialize new Ptr of type T
+        Ptr(bool init=false) : ptr_(init?new T():nullptr), ref_count_(ptr_?new uint32_t(1):new uint32_t(0))
+        {}
 
         // create a new smart pointer from T by copying T
-        Ptr(T t)
-        {
-            ref_count_ = new uint32_t(1);
-            ptr_ = new T(t);
-        }
+        Ptr(T t) : ptr_(new T(t)), ref_count_(new uint32_t(1))
+        {}
 
         // copy constructor
         Ptr(const Ptr<T> & other) : ptr_(other.ptr_), ref_count_(other.ref_count_)
         {
-
             if(ref_count_){
                 ++(*ref_count_);
             }
-
         }
-
+        
+        // move constructor
         Ptr(Ptr<T>&& other) noexcept : ptr_(other.ptr_), ref_count_(other.ref_count_) {
             other.ptr_ = nullptr;
             other.ref_count_ = nullptr;
@@ -63,16 +50,18 @@
         // Destructor
         ~Ptr()
         {
+            // delete pointer if reference count reach 0
             if (ref_count_ != nullptr && ref_count_ == 0)
             {
                 delete ptr_;
                 delete ref_count_;
+            // else decrement reference count
             }else if (ref_count_ != nullptr) {
                 --(*ref_count_);
             }
         }
 
-        // Assignment operators
+        // Assignment operator for other Ptr<T>
         Ptr<T>& operator=(const Ptr<T>& other)
         {
             if (this != &other) {
@@ -94,7 +83,7 @@
             return *this;
         }
 
-        // Assignment operators
+        // Assignment operators for other T
         Ptr<T>& operator=(const T & other)
         {
             *ptr_ = other;
@@ -124,77 +113,53 @@
         }
 
         // Utility functions
+        // Is this even useful?
         bool Unique() const {
             return ref_count_ && *ref_count_ == 1;
         }
 
+        // get number of references to this pointer
         uint32_t Count() const {
             return *ref_count_;
         }
 
+        // swap this pointer with other
         void Swap(Ptr<T>& other) {
             std::swap(ptr_, other.ptr_);
             std::swap(ref_count_, other.ref_count_);
         }
 
-/*
-        // Copy assignment operator.
-        Ptr& operator=(const Ptr& other) {
-            if (ptr_ != other.ptr_) {
-                Ptr tmp(other);
-                Swap(tmp);
-            }
-            return *this;
-        }
-*/
-
-        // -------------
-        // Cast the stored pointer to type T and return it
+        // cast the stored pointer to type U and return it as raw pointer
+        /*
         template <typename U>
         U * Value() const {
             return dynamic_cast<U*>(ptr_);
         }
-
-        /*
-        template <typename U>
-        Ptr<U> Cast() const {
-            
-            U* casted_ptr = dynamic_cast<U*>(ptr_);
-
-            if (casted_ptr == nullptr) {
-                // The cast failed, so return an empty Ptr<U> object.
-                return Ptr<U>();
-            }
-
-            // The cast succeeded, so create a new Ptr<U> object with the same
-            // pointer value as the original Ptr<Base> object.
-            Ptr<U> result(casted_ptr);
-            return result;
-        }
         */
 
+        // cast the stored pointer to type U and return it as Ptr<U>
         template <typename U>
         Ptr<U> Cast() const {
             return Ptr<U>(dynamic_cast<U*>(ptr_), ref_count_);
         }
 
+        // check if T same type as U
         template<typename U>
         bool Same() const {
             return dynamic_cast<const U*>(ptr_) != nullptr;
         }
 
+        // check if pointer initialized
         operator bool() const {
             return ptr_ != nullptr;
         }
 
+        // check if two Ptrs same
         bool operator==(const Ptr<T>& lhs) {
             return lhs.ptr_ == ptr_;
         }
 
-        void Test(){
-            cout << ptr_ << endl;
-        }
-
+        // return demangled typename of T
         string Type(){
             const std::type_info& t = typeid(*ptr_);
             int status;
@@ -204,14 +169,18 @@
             return r;
         }
 
+        // Null reference
         static Ptr<T> Null;
 
 private:
 
+        // internal pointer
         T* ptr_;
+
+        // reference count to number of copies of pointer
         uint32_t * ref_count_;
 
-        // Private constructor for dynamic_cast_to
+        // private constructor for dynamic_cast_to
         Ptr(T* ptr, uint32_t* ref_count) : ptr_(ptr), ref_count_(ref_count) {
             
             if (ptr_ != nullptr) {
@@ -219,12 +188,14 @@ private:
             }
 
         }
-
+        
+        // allow Ptr<U> access to private constructor in Ptr<T>
         template <typename U>
         friend class Ptr;
 
     };
 
+    // define static null value
     template<typename T>
     Ptr<T> Ptr<T>::Null = Ptr<T>();
 
