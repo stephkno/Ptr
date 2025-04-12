@@ -1,202 +1,235 @@
 #ifndef PTR_H
 #define PTR_H
 
-    #include <typeinfo>
-    #include <string>
+#include <typeinfo>
+#include <string>
+#include <iostream>
+#include <cxxabi.h>
+#include <memory>
+#include <sstream>
 
-    // demangle
-    #include <cxxabi.h>
-    #include <stdint.h>
+#include <boost/serialization/serialization.hpp> 
+#include <boost/serialization/nvp.hpp> 
+#include <boost/serialization/split_member.hpp>
 
-    using namespace std;
+using namespace std;
 
-    class UninitializedPointer{
-    public:
-        string Msg() {
-            return "Tried to access uninitialized pointer object.";
-        }
-    };
+class UninitializedPointer : public exception {
+public:
+    const char* what() const noexcept override {
+        return "Tried to access uninitialized pointer object.";
+    }
+};
 
-    template <typename T>
-    class Ptr {
+class PointerAlreadyInitialized : public exception {
+public:
+    const char* what() const noexcept override {
+        return "Tried to reinitialize a pointer that already exists.";
+    }
+};
 
-    public:
+template <typename T>
+class Ptr {
 
-        // Prohibit heap allocation of Ptr
-        void * operator new (size_t);
-
-        // Initialize new Ptr of type T
-        Ptr(bool init=false) : ptr_(init?new T():nullptr), ref_count_(ptr_?new uint32_t(1):new uint32_t(0))
-        {}
-
-        // create a new smart pointer from T by copying T
-        Ptr(T t) : ptr_(new T(t)), ref_count_(new uint32_t(1))
-        {}
-
-        // copy constructor
-        Ptr(const Ptr<T> & other) : ptr_(other.ptr_), ref_count_(other.ref_count_)
-        {
-            if(ref_count_){
-                ++(*ref_count_);
-            }
-        }
-        
-        // move constructor
-        Ptr(Ptr<T>&& other) noexcept : ptr_(other.ptr_), ref_count_(other.ref_count_) {
-            other.ptr_ = nullptr;
-            other.ref_count_ = nullptr;
-        }
-
-        // Destructor
-        ~Ptr()
-        {
-            // delete pointer if reference count reach 0
-            if (ref_count_ != nullptr && ref_count_ == 0)
-            {
-                delete ptr_;
-                delete ref_count_;
-            // else decrement reference count
-            }else if (ref_count_ != nullptr) {
-                --(*ref_count_);
-            }
-        }
-
-        // Assignment operator for other Ptr<T>
-        Ptr<T>& operator=(const Ptr<T>& other)
-        {
-            if (this != &other) {
-                // Decrement the reference count of the current object
-                if (ref_count_ && --(*ref_count_) == 0) {
-                    delete ptr_;
-                    delete ref_count_;
-                }
-
-                // Assign the new pointer and reference count
-                ptr_ = other.ptr_;
-                ref_count_ = other.ref_count_;
-
-                // Increment the reference count of the new object
-                if (ref_count_) {
-                    ++(*ref_count_);
-                }
-            }
-            return *this;
-        }
-
-        // Assignment operators for other T
-        Ptr<T>& operator=(const T & other)
-        {
-            *ptr_ = other;
-            return *this;
-        }
-
-        // Dereferencing operators
-        T & operator*() const {
-            if(!ptr_){
-                throw UninitializedPointer();
-            }
-            return *ptr_;
-        }
-
-        T * operator->() const {
-            if(!ptr_){
-                throw UninitializedPointer();
-            }
-            return ptr_;
-        }
-
-        T Get() const {
-            if(!ptr_){
-                throw UninitializedPointer();
-            }
-            return *ptr_;
-        }
-
-        // Utility functions
-        // Is this even useful?
-        bool Unique() const {
-            return ref_count_ && *ref_count_ == 1;
-        }
-
-        // get number of references to this pointer
-        uint32_t Count() const {
-            return *ref_count_;
-        }
-
-        // swap this pointer with other
-        void Swap(Ptr<T>& other) {
-            std::swap(ptr_, other.ptr_);
-            std::swap(ref_count_, other.ref_count_);
-        }
-
-        // cast the stored pointer to type U and return it as raw pointer
-        /*
-        template <typename U>
-        U * Value() const {
-            return dynamic_cast<U*>(ptr_);
-        }
-        */
-
-        // cast the stored pointer to type U and return it as Ptr<U>
-        template <typename U>
-        Ptr<U> Cast() const {
-            return Ptr<U>(dynamic_cast<U*>(ptr_), ref_count_);
-        }
-
-        // check if T same type as U
-        template<typename U>
-        bool Same() const {
-            return dynamic_cast<const U*>(ptr_) != nullptr;
-        }
-
-        // check if pointer initialized
-        operator bool() const {
-            return ptr_ != nullptr;
-        }
-
-        // check if two Ptrs same
-        bool operator==(const Ptr<T>& lhs) {
-            return lhs.ptr_ == ptr_;
-        }
-
-        // return demangled typename of T
-        string Type(){
-            const std::type_info& t = typeid(*ptr_);
-            int status;
-            char* demangled = abi::__cxa_demangle(t.name(), 0, 0, &status);
-            string r(demangled);
-            free(demangled);
-            return r;
-        }
-
-        // Null reference
-        static Ptr<T> Null;
+    friend class boost::serialization::access;
+    template<class Archive>
+    void serialize(Archive & ar, const unsigned int version){
+        ar & boost::serialization::make_nvp("pointer", ptr_); // Serialize raw pointer
+        //ar & boost::serialization::make_nvp("ref_count", *ref_count_);
+    }
 
 private:
 
-        // internal pointer
-        T* ptr_;
+    T* ptr_ = nullptr;
+    uint32_t* ref_count_ = nullptr;
 
-        // reference count to number of copies of pointer
-        uint32_t * ref_count_;
 
-        // private constructor for dynamic_cast_to
-        Ptr(T* ptr, uint32_t* ref_count) : ptr_(ptr), ref_count_(ref_count) {
+    // Private constructor for cross-type initialization
+    template <typename U>
+    Ptr(U* ptr, uint32_t* ref_count) : ptr_(ptr), ref_count_(ref_count) {
+        if (ref_count_) ++(*ref_count_);
+    }
+
+    explicit Ptr(T* ptr) : ptr_(ptr), ref_count_(new uint32_t(1)) {}
+
+public:
+    // Friend all other Ptr templates
+    template <typename U>
+    friend class Ptr;
+
+    // Prohibit heap allocation
+    //void* operator new(size_t) = delete;
+    //void operator delete(void*) = delete;
+
+    // Ptr factory method
+    template <typename... Args>
+    static Ptr<T> Make(Args&&... args) {
+        return Ptr<T>(new T(std::forward<Args>(args)...));
+    }
+    
+/*
+    explicit Ptr(T* value = nullptr) : ptr_(value), ref_count_(new uint32_t(1)) {
+        if (!value) ref_count_ = nullptr;
+    }
+*/
+    Ptr() : ptr_(nullptr), ref_count_(nullptr) {}
+
+    Ptr(std::nullptr_t) : ptr_(nullptr), ref_count_(nullptr) {}
+    
+    // Copy constructor
+    Ptr(const Ptr& other) : ptr_(other.ptr_), ref_count_(other.ref_count_) {
+        //free();
+        if (ref_count_) ++(*ref_count_);
+    }
+
+    // Move constructor
+    Ptr(Ptr&& other) noexcept : ptr_(other.ptr_), ref_count_(other.ref_count_) {
+        other.ptr_ = nullptr;
+        other.ref_count_ = nullptr;
+    }
+    
+    explicit Ptr(const T& value) : ptr_(new T(value)), ref_count_(new uint32_t(1)) {}
+
+    // Destructor
+    ~Ptr() {
+        free();
+    }
+
+    void free() {
+
+        if (ref_count_ && --(*ref_count_) == 0) {
+
+            if(ptr_)
+                delete ptr_;
+            if(ref_count_)
+                delete ref_count_;
+        
+            ptr_ = nullptr;
+            ref_count_ = nullptr;
             
-            if (ptr_ != nullptr) {
+        }
+
+    }
+
+    Ptr& operator=(std::nullptr_t) {
+        free();
+        return *this;
+    }
+
+    // Assignment operator
+    Ptr& operator=(const Ptr& other) {
+        if (this != &other) {
+            free();  // Decrement existing ref_count (if any)
+            ptr_ = other.ptr_;
+            ref_count_ = other.ref_count_;
+            if (ref_count_) {
                 ++(*ref_count_);
             }
-
         }
-        
-        // allow Ptr<U> access to private constructor in Ptr<T>
-        template <typename U>
-        friend class Ptr;
+        return *this;
+    }
 
-    };
+    // Move assignment operator
+    Ptr& operator =(Ptr&& other) noexcept {
+        if (this != &other) {
+            free();
+            ptr_ = other.ptr_;
+            ref_count_ = other.ref_count_;
+            other.ptr_ = nullptr;
+            other.ref_count_ = nullptr;
+        }
+        return *this;
+    }
 
-    // define static null value
-    template<typename T>
-    Ptr<T> Ptr<T>::Null = Ptr<T>();
+    bool operator <(const T * other){
+        return ptr_ < other;
+    }
+    bool operator >(const T * other){
+        return ptr_ > other;
+    }
+    bool operator ==(const Ptr & other){
+        return ptr_ == other.ptr_;
+    }
+    bool operator !=(const Ptr & other){
+        return ptr_ != other.ptr_;
+    }
+    bool operator ==(const T * other){
+        return ptr_ == other;
+    }
+    bool operator !=(const T * other){
+        return ptr_ != other;
+    }
+    
+    // Check if initialized
+    explicit operator bool() const noexcept {
+        return ptr_ != nullptr;
+    }
+
+    friend ostream& operator<<(ostream& os, const Ptr& ptr){
+        os << ptr.ptr_;
+        return os;
+    }
+
+    // Dereference operators
+    T& operator*() const {
+        if (!ptr_) throw UninitializedPointer();
+        return *ptr_;
+    }
+
+    T* operator->() const {
+        if (!ptr_) throw UninitializedPointer();
+        return ptr_;
+    }
+  
+    string Addr(){
+        const void * address = static_cast<const void*>(ptr_);
+        stringstream ss;
+        ss << address;
+        return ss.str();
+    }
+
+    T & Get() const noexcept {
+        return *ptr_;
+    }
+
+    // Get reference count
+    uint32_t Count() const noexcept {
+        return ref_count_ ? *ref_count_ : 0;
+    }
+
+    // Check uniqueness
+    bool Unique() const noexcept {
+        return ref_count_ && *ref_count_ == 1;
+    }
+
+    // Swap with another Ptr
+    void Swap(Ptr& other) noexcept {
+        swap(ptr_, other.ptr_);
+        swap(ref_count_, other.ref_count_);
+    }
+
+    // Type information
+    string Type() const {
+        if (!ptr_) return "Null";
+        int status;
+        char* demangled = abi::__cxa_demangle(typeid(*ptr_).name(), 0, 0, &status);
+        string result(demangled);
+        free(demangled);
+        return result;
+    }
+
+    // Safe casting method
+    template <typename U>
+    Ptr<U> Cast() const {
+        U* casted = dynamic_cast<U*>(ptr_);
+        if (!casted) return Ptr<U>();  // Return null if cast failed
+    
+        // Create a new Ptr<U> instance with a separate reference count
+        // This assumes the casted object should share the same ownership semantics as the original.
+        Ptr<U> newPtr(casted, ref_count_);
+        return newPtr;
+    }
+
+};
 
 #endif

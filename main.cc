@@ -16,6 +16,8 @@ public:
     }
     
     virtual void DerivedFunction() {}
+
+    int a = 0;
 };
 
 class DerivedTest : public BaseTest{
@@ -28,14 +30,76 @@ public:
     }
 };
 
-int main(){
+void TestValue(Ptr<BaseTest> ptr){
+    ptr->a = 1;
+}
+void TestReference(Ptr<BaseTest> & ptr){
+    ptr->a = 1;
+}
 
-    Ptr<int> p(2);
+// Binary Tree Node structure
+struct TreeNode {
+    int value;
+    Ptr<TreeNode> left;
+    Ptr<TreeNode> right;
+
+    TreeNode(int val) : value(val) {}
+};
+
+// Function to create and initialize a simple binary tree
+Ptr<TreeNode> create_tree() {
+    // Create root node
+    Ptr<TreeNode> root(new TreeNode(5));
+    
+    // Create left child and assign using move semantics
+    root->left = Ptr<TreeNode>(new TreeNode(3));
+    
+    // Create right child and assign using move semantics
+    root->right = Ptr<TreeNode>(new TreeNode(7));
+    
+    return root;
+}
+
+// Example usage
+int main() {
+    Ptr<TreeNode> root = create_tree();
+    
+    // Access node values using Ptr dereference
+    std::cout << "Root value: " << root->value << "\n";
+    std::cout << "Left child value: " << root->left->value << "\n";
+    std::cout << "Right child value: " << root->right->value << "\n";
+    
+    // Check reference counts
+    std::cout << "Root reference count: " << root.Count() << "\n";
+    std::cout << "Left child reference count: " << root->left.Count() << "\n";
+    std::cout << "Right child reference count: " << root->right.Count() << "\n";
+    
+    return 0;
+}
+
+/*
+
+// Basic test and demonstration of Ptr
+int main(){
+    
+    Ptr<int> p1(1);
+    Ptr<int> p2(2);
+    Ptr<int> p3(3);
+    Ptr<int> p4(p1);
+    Ptr<int> p5();
+
+    cout << p1.Count() << endl;
+    cout << p2.Count() << endl;
+    cout << p3.Count() << endl;
+    cout << p4.Count() << endl;
+    cout << (bool)p5 << endl;
+
+    return 0;
     cout << "Demangled typename of p: " << p.Type() << endl; // int
-    cout << "P is defined: " << (p ? "True" : "False") << endl; // 1
-    cout << "Address of p: " << &p << endl;       // addr
+    cout << "P is defined: " << (p ? "True" : "False") << endl; // True
+    cout << "Address of p: " << &p << endl;     // address of p
     cout << "Value of p: " << *p << endl;       // 2
-    cout << "Reference count of p: " << p.Count() << endl; // 1000
+    cout << "Reference count of p: " << p.Count() << endl; // 1
     
     vector<Ptr<int>> ints;
     
@@ -82,6 +146,13 @@ int main(){
     c->DerivedFunction();
     c.Cast<DerivedTest>()->DerivedFunction();
 
-    return 0;
+    for(int i = 0; i < 100000; i++){
+     
+        Ptr<BaseTest> p(true);
+        TestValue(p);
+        //TestReference(p);
 
+    }
+    return 0;
 }
+*/

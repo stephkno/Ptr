@@ -1,0 +1,1 @@
+/usr/bin/c++ -w -g -rdynamic -Wl,--dependency-file=CMakeFiles/test.dir/link.d CMakeFiles/test.dir/main.cc.o -o test

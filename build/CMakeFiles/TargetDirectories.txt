@@ -1,0 +1,3 @@
+/home/stephen/code/Ptr/build/CMakeFiles/test.dir
+/home/stephen/code/Ptr/build/CMakeFiles/edit_cache.dir
+/home/stephen/code/Ptr/build/CMakeFiles/rebuild_cache.dir
