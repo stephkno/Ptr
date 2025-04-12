@@ -43,7 +43,6 @@ private:
     T* ptr_ = nullptr;
     uint32_t* ref_count_ = nullptr;
 
-
     // Private constructor for cross-type initialization
     template <typename U>
     Ptr(U* ptr, uint32_t* ref_count) : ptr_(ptr), ref_count_(ref_count) {
@@ -202,19 +201,12 @@ public:
         return ref_count_ && *ref_count_ == 1;
     }
 
-    // Swap with another Ptr
-    void Swap(Ptr& other) noexcept {
-        swap(ptr_, other.ptr_);
-        swap(ref_count_, other.ref_count_);
-    }
-
     // Type information
     string Type() const {
         if (!ptr_) return "Null";
         int status;
         char* demangled = abi::__cxa_demangle(typeid(*ptr_).name(), 0, 0, &status);
         string result(demangled);
-        free(demangled);
         return result;
     }
 

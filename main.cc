@@ -1,158 +1,134 @@
-#include <ptr.h>
+#include <cassert>
 #include <iostream>
-#include <vector>
-#include <stdint.h>
+#include "ptr.h"./
 
-using namespace std;
-
-class BaseTest{
-public:
-    BaseTest(){}
-    
-    virtual ~BaseTest(){}
-
-    void Function(){
-        cout << "Base Function" << endl;
+void testPtrFunction() {
+    // Test Default Construction
+    {
+        Ptr<int> p;
+        assert(!p);
+        assert(p.Count() == 0);
+        assert(p.Type() == "Null");
+        try {
+            *p;
+            assert(false); // Should not reach here
+        } catch (const UninitializedPointer& e) {}
+        try {
+            p.operator->();
+            assert(false);
+        } catch (const UninitializedPointer& e) {}
     }
-    
-    virtual void DerivedFunction() {}
 
-    int a = 0;
-};
-
-class DerivedTest : public BaseTest{
-public:
-    DerivedTest(){
-
+    // Test Make Factory and Basic Functionality
+    {
+        auto p = Ptr<int>::Make(42);
+        assert(p);
+        assert(p.Count() == 1);
+        assert(*p == 42);
+        assert(p.Type() == "int");
+        assert(p.Unique());
     }
-    void DerivedFunction() override {
-        cout << "Derived Function" << endl;
+
+    // Test Copy Constructor
+    {
+        auto p1 = Ptr<int>::Make(100);
+        auto p2 = p1; // Copy
+        assert(p1.Count() == 2);
+        assert(p2.Count() == 2);
+        *p2 = 200;
+        assert(*p1 == 200);
     }
-};
 
-void TestValue(Ptr<BaseTest> ptr){
-    ptr->a = 1;
+    // Test Move Constructor
+    {
+        auto p1 = Ptr<int>::Make(300);
+        auto p2 = std::move(p1);
+        assert(!p1); // p1 is moved from
+        assert(p2.Count() == 1);
+        assert(*p2 == 300);
+    }
+
+    // Test Assignment Operator
+    {
+        auto p1 = Ptr<int>::Make(400);
+        Ptr<int> p2;
+        p2 = p1;
+        assert(p1.Count() == 2);
+        assert(p2.Count() == 2);
+    }
+
+    // Test Move Assignment
+    {
+        auto p1 = Ptr<int>::Make(500);
+        Ptr<int> p2;
+        p2 = std::move(p1);
+        assert(!p1);
+        assert(p2.Count() == 1);
+    }
+
+    // Test Casting
+    {
+        class Base { public: virtual ~Base() {} };
+        class Derived : public Base { public: Derived() {} };
+        class Unrelated {};
+
+        // Upcast from Derived to Base
+        Ptr<Derived> derivedPtr = Ptr<Derived>::Make();
+        Ptr<Base> basePtr = derivedPtr.Cast<Base>();
+        assert(basePtr != nullptr);
+        assert(derivedPtr.Count() == 2);
+        assert(basePtr.Count() == 2);
+
+        // Downcast back to Derived
+        auto derivedPtr2 = basePtr.Cast<Derived>();
+        assert(derivedPtr2 != nullptr);
+        assert(derivedPtr2.Count() == 3);
+
+        // Attempt to cast Base (not Derived) to Derived
+        Ptr<Base> basePtr2 = Ptr<Base>::Make();
+        auto derivedPtr3 = basePtr2.Cast<Derived>();
+        assert(derivedPtr3 == nullptr);
+
+        // Cast to unrelated type
+        auto unrelatedPtr = basePtr.Cast<Unrelated>();
+        assert(unrelatedPtr == nullptr);
+    }
+
+    // Test Exceptions
+    {
+        Ptr<int> nullPtr;
+        try {
+            nullPtr.Get();
+            assert(nullPtr == nullptr);
+        } catch (const UninitializedPointer&) {}
+    }
+
+    // Test Addr Method
+    {
+        auto p = Ptr<int>::Make(123);
+        assert(!p.Addr().empty());
+    }
+
+    // Test Type Method
+    {
+        auto p = Ptr<std::string>::Make("test");
+        std::string type = p.Type();
+        assert(type.find("basic_string") != std::string::npos || type.find("string") != std::string::npos);
+    }
+
+    // Test Unique Method
+    {
+        auto p1 = Ptr<int>::Make(10);
+        assert(p1.Unique());
+        auto p2 = p1;
+        assert(!p1.Unique());
+        assert(!p2.Unique());
+    }
+
+    std::cout << "All tests passed!" << std::endl;
 }
-void TestReference(Ptr<BaseTest> & ptr){
-    ptr->a = 1;
-}
 
-// Binary Tree Node structure
-struct TreeNode {
-    int value;
-    Ptr<TreeNode> left;
-    Ptr<TreeNode> right;
-
-    TreeNode(int val) : value(val) {}
-};
-
-// Function to create and initialize a simple binary tree
-Ptr<TreeNode> create_tree() {
-    // Create root node
-    Ptr<TreeNode> root(new TreeNode(5));
-    
-    // Create left child and assign using move semantics
-    root->left = Ptr<TreeNode>(new TreeNode(3));
-    
-    // Create right child and assign using move semantics
-    root->right = Ptr<TreeNode>(new TreeNode(7));
-    
-    return root;
-}
-
-// Example usage
 int main() {
-    Ptr<TreeNode> root = create_tree();
-    
-    // Access node values using Ptr dereference
-    std::cout << "Root value: " << root->value << "\n";
-    std::cout << "Left child value: " << root->left->value << "\n";
-    std::cout << "Right child value: " << root->right->value << "\n";
-    
-    // Check reference counts
-    std::cout << "Root reference count: " << root.Count() << "\n";
-    std::cout << "Left child reference count: " << root->left.Count() << "\n";
-    std::cout << "Right child reference count: " << root->right.Count() << "\n";
-    
+    testPtrFunction();
     return 0;
 }
-
-/*
-
-// Basic test and demonstration of Ptr
-int main(){
-    
-    Ptr<int> p1(1);
-    Ptr<int> p2(2);
-    Ptr<int> p3(3);
-    Ptr<int> p4(p1);
-    Ptr<int> p5();
-
-    cout << p1.Count() << endl;
-    cout << p2.Count() << endl;
-    cout << p3.Count() << endl;
-    cout << p4.Count() << endl;
-    cout << (bool)p5 << endl;
-
-    return 0;
-    cout << "Demangled typename of p: " << p.Type() << endl; // int
-    cout << "P is defined: " << (p ? "True" : "False") << endl; // True
-    cout << "Address of p: " << &p << endl;     // address of p
-    cout << "Value of p: " << *p << endl;       // 2
-    cout << "Reference count of p: " << p.Count() << endl; // 1
-    
-    vector<Ptr<int>> ints;
-    
-    cout << "Reference count of ints: " << p.Count() << endl; // 0
-    cout << "Cloning 1000 ints into ints" << endl;
-    
-    Ptr<int> int_(42);
-    
-    for(int i = 0; i <= 1000; i++){
-        
-        Ptr<int> p = Ptr<int>(int_);
-        ints.push_back(p);
-        ints[i] = i;
-
-    }
-
-    cout << "Value of ints[0]" << endl;
-    cout << ints[0].Get() << endl;
-
-    cout << "Value of ints[100]" << endl;
-    cout << ints[100].Get() << endl;
-
-    cout << "Reference count of ints: " << ints.back().Count() << endl; // 1000
-    
-    cout << "Create base class ptr" << endl;
-    Ptr<BaseTest> a(true);
-    
-    cout << "Call base class function" << endl;
-    a->Function();
-
-    cout << "Create derived class ptr" << endl;
-    Ptr<DerivedTest> b(true);
-    
-    cout << "Call derived class function" << endl;
-    b->DerivedFunction();
-
-    cout << "Create base class ptr from derived class ptr" << endl;
-    Ptr<BaseTest> c(b.Cast<BaseTest>());
-
-    cout << "Call base function from derived base class ptr" << endl;
-    c->Function();
-
-    cout << "Call derived function from derived base class ptr" << endl;
-    c->DerivedFunction();
-    c.Cast<DerivedTest>()->DerivedFunction();
-
-    for(int i = 0; i < 100000; i++){
-     
-        Ptr<BaseTest> p(true);
-        TestValue(p);
-        //TestReference(p);
-
-    }
-    return 0;
-}
-*/
