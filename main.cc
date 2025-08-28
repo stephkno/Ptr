@@ -1,6 +1,6 @@
 #include <cassert>
 #include <iostream>
-#include "ptr.h"./
+#include "ptr.h"
 
 void testPtrFunction() {
     // Test Default Construction
